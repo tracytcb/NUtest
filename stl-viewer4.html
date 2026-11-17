@@ -268,9 +268,11 @@ function loadSTL(geometry, name) {
     const distance = maxDimension * 0.5;
 
 
+camera.up.set(0, 0, 1);
+
 camera.position.set(
     distance,
-    -distance * 7,
+    -distance * 0.3,
     0
     );
 
