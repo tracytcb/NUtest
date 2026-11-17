@@ -324,10 +324,12 @@ function loadFromURL(url) {
             loadSTL(geometry, 'STL model');
         },
         undefined,
-        function(error) {
-            console.error('STL loading error:', error);
-            document.getElementById('filename').textContent =
-                'Could not load model';
+    function(error) {
+    console.error('STL loading error:', error);
+
+    if (!currentModel) {
+        document.getElementById('filename').textContent =
+            'Could not load model';
         }
     );
 
