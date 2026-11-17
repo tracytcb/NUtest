@@ -268,11 +268,9 @@ function loadSTL(geometry, name) {
     const distance = maxDimension * 0.5;
 
 
-camera.up.set(0, 0, 1);
-
 camera.position.set(
     distance,
-    -distance * 0.3,
+    -distance * 7,
     0
     );
 
@@ -286,7 +284,8 @@ camera.position.set(
     originalCameraPosition.copy(camera.position);
     originalTarget.set(0, 0, 0);
 
-   
+    grid.scale.setScalar(
+        maxDimension / 200
     );
 
     document.getElementById('filename').textContent =
