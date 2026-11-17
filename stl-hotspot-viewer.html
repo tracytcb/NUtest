@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D STL Hotspot Viewer</title>
+
+<style>
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: Arial, sans-serif;
+    color: #222;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    background: #f4f5f7;
+}
+
+#toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    background: #202936;
+    color: white;
+    z-index: 5;
+}
+
+button {
+    border: 0;
+    border-radius: 5px;
+    padding: 9px 12px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+button.primary {
+    background: #1976d2;
+    color: white;
+}
+
+button.secondary {
+    background: #e6eaf0;
+    color: #202936;
+}
+
+button.danger {
+    background: #b83232;
+    color: white;
+}
+
+button:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+#status {
+    font-size: 13px;
+    flex: 1;
+    min-width: 160px;
+}
+
+#viewer {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    background: #e9edf2;
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+#hotspotLayer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.hotspot {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    width: 25px;
+    height: 25px;
+    border: 2px solid white;
+    border-radius: 50%;
+    background: #e53935;
+    color: white;
+    font-weight: bold;
+    box-shadow: 0 1px 6px #0008;
+    cursor: pointer;
+    pointer-events: auto;
+    padding: 0;
+    display: grid;
+    place-items: center;
+}
+
+.hotspot:hover {
+    background: #a91515;
+    transform: translate(-50%, -50%) scale(1.12);
+}
+
+#info {
+    display: none;
+    position: absolute;
+    z-index: 4;
+    left: 12px;
+    bottom: 12px;
+    width: min(340px, calc(100% - 24px));
+    max-height: 42%;
+    overflow: auto;
+    background: white;
+    border-radius: 8px;
+    padding: 14px 16px;
+    box-shadow: 0 3px 18px #0003;
+}
+
+#info h3 {
+    margin: 0 28px 7px 0;
+    font-size: 17px;
+}
+
+#info p {
+    margin: 0;
+    line-height: 1.4;
+    white-space: pre-wrap;
+}
+
+#closeInfo {
+    position: absolute;
+    right: 8px;
+    top: 7px;
+    background: transparent;
+    font-size: 20px;
+    padding: 2px 7px;
+}
+
+#help {
+    padding: 7px 10px;
+    font-size: 12px;
+    background: #fff;
+    color: #555;
+    border-top: 1px solid #ddd;
+}
+
+@media (max-width: 520px) {
+    #toolbar {
+        gap: 6px;
+        padding: 7px;
+    }
+
+    button {
+        padding: 8px 9px;
+        font-size: 12px;
+    }
+
+    #status {
+        flex-basis: 100%;
+    }
+}
+</style>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+
+<body>
+
+<div id="toolbar">
+    <button id="addBtn" class="primary">Add hotspot</button>
+    <button id="finishBtn" class="secondary" disabled>
+        Cancel adding
+    </button>
+    <button id="exportBtn" class="secondary">
+        Export labels
+    </button>
+    <button id="importBtn" class="secondary">
+        Import labels
+    </button>
+    <button id="clearBtn" class="danger">
+        Clear all
+    </button>
+
+    <span id="status">Loading 3D model…</span>
+
+    <input id="importFile" type="file"
+           accept=".json,application/json" hidden>
+</div>
+
+<div id="viewer">
+
+    <div id="hotspotLayer"></div>
+
+    <div id="info">
+        <button id="closeInfo" aria-label="Close">×</button>
+        <h3 id="infoTitle"></h3>
+        <p id="infoText"></p>
+    </div>
+
+</div>
+
+<div id="help">
+    Drag to rotate · Scroll or pinch to zoom ·
+    Right-drag to pan · Select a numbered hotspot to view its label
+</div>
+
+<script type="module">
+
+import * as THREE from 'three';
+
+import { STLLoader } from
+'three/addons/loaders/STLLoader.js';
+
+import { OrbitControls } from
+'three/addons/controls/OrbitControls.js';
+
+
+/* =================================
+   MODEL URL
+================================= */
+
+const DEFAULT_MODEL =
+'https://tracytcb.github.io/NUtest/wide-skull-bowl-stl.stl';
+
+const params = new URLSearchParams(location.search);
+
+const modelUrl = params.get('model') || DEFAULT_MODEL;
+
+
+/* =================================
+   VARIABLES
+================================= */
+
+const viewer = document.getElementById('viewer');
+
+const layer = document.getElementById('hotspotLayer');
+
+const statusEl = document.getElementById('status');
+
+const addBtn = document.getElementById('addBtn');
+
+const finishBtn = document.getElementById('finishBtn');
+
+const info = document.getElementById('info');
+
+const infoTitle = document.getElementById('infoTitle');
+
+const infoText = document.getElementById('infoText');
+
+const raycaster = new THREE.Raycaster();
+
+const pointer = new THREE.Vector2();
+
+let scene, camera, renderer, controls, mesh;
+
+let adding = false;
+
+let hotspots = [];
+
+let nextId = 1;
+
+
+/* =================================
+   INITIALISE VIEWER
+================================= */
+
+function init() {
+
+    scene = new THREE.Scene();
+
+    scene.background = new THREE.Color(0xe9edf2);
+
+    camera = new THREE.PerspectiveCamera(
+        45,
+        viewer.clientWidth / viewer.clientHeight,
+        0.1,
+        10000
+    );
+
+    renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: false
+    });
+
+    renderer.setPixelRatio(
+        Math.min(window.devicePixelRatio || 1, 2)
+    );
+
+    renderer.setSize(
+        viewer.clientWidth,
+        viewer.clientHeight
+    );
+
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    viewer.appendChild(renderer.domElement);
+
+
+    /* Lighting */
+
+    scene.add(
+        new THREE.HemisphereLight(
+            0xffffff,
+            0x667080,
+            2.1
+        )
+    );
+
+    const key = new THREE.DirectionalLight(
+        0xffffff,
+        2.0
+    );
+
+    key.position.set(1, 2, 3);
+
+    scene.add(key);
+
+
+    const fill = new THREE.DirectionalLight(
+        0xffffff,
+        0.8
+    );
+
+    fill.position.set(-2, -1, -2);
+
+    scene.add(fill);
+
+
+    /* Rotation and zoom controls */
+
+    controls = new OrbitControls(
+        camera,
+        renderer.domElement
+    );
+
+    controls.enableDamping = true;
+
+    controls.dampingFactor = 0.07;
+
+    controls.screenSpacePanning = true;
+
+
+    /* =================================
+       LOAD STL MODEL
+    ================================= */
+
+    new STLLoader().load(
+
+        modelUrl,
+
+        geometry => {
+
+            geometry.computeVertexNormals();
+
+            geometry.computeBoundingBox();
+
+            const center = geometry.boundingBox.getCenter(
+                new THREE.Vector3()
+            );
+
+            geometry.translate(
+                -center.x,
+                -center.y,
+                -center.z
+            );
+
+            const size = geometry.boundingBox.getSize(
+                new THREE.Vector3()
+            );
+
+            const maxDim = Math.max(
+                size.x,
+                size.y,
+                size.z
+            ) || 1;
+
+
+            mesh = new THREE.Mesh(
+                geometry,
+                new THREE.MeshStandardMaterial({
+                    color: 0xb8c2cf,
+                    metalness: 0.12,
+                    roughness: 0.62,
+                    side: THREE.DoubleSide
+                })
+            );
+
+            scene.add(mesh);
+
+
+            /* Camera position */
+
+            const distance = maxDim * 2.25;
+
+            camera.position.set(
+                distance,
+                -distance * 0.75,
+                distance * 0.55
+            );
+
+            camera.near = Math.max(
+                maxDim / 1000,
+                0.01
+            );
+
+            camera.far = maxDim * 100;
+
+            camera.updateProjectionMatrix();
+
+            controls.target.set(0, 0, 0);
+
+            controls.update();
+
+            setStatus(
+                'Model loaded. Add hotspots or rotate the model.'
+            );
+
+            loadSaved();
+
+        },
+
+        xhr => {
+
+            if (xhr.total) {
+
+                setStatus(
+                    `Loading model… ${
+                        Math.round(xhr.loaded / xhr.total * 100)
+                    }%`
+                );
+
+            }
+
+        },
+
+        error => {
+
+            console.error(error);
+
+            setStatus(
+                'Could not load STL. Check model URL and CORS permissions.'
+            );
+
+        }
+
+    );
+
+
+    /* =================================
+       BUTTON EVENTS
+    ================================= */
+
+    addBtn.addEventListener('click', () => {
+
+        if (!mesh) return;
+
+        adding = true;
+
+        finishBtn.disabled = false;
+
+        setStatus(
+            'Adding hotspot: click a point on the 3D model.'
+        );
+
+        renderer.domElement.style.cursor = 'crosshair';
+
+    });
+
+
+    finishBtn.addEventListener(
+        'click',
+        stopAdding
+    );
+
+
+    renderer.domElement.addEventListener(
+        'click',
+        onModelClick
+    );
+
+
+    document.getElementById('closeInfo')
+        .addEventListener('click', () => {
+
+            info.style.display = 'none';
+
+        });
+
+
+    document.getElementById('exportBtn')
+        .addEventListener('click', exportLabels);
+
+
+    document.getElementById('importBtn')
+        .addEventListener('click', () => {
+
+            document.getElementById('importFile').click();
+
+        });
+
+
+    document.getElementById('importFile')
+        .addEventListener('change', importLabels);
+
+
+    document.getElementById('clearBtn')
+        .addEventListener('click', () => {
+
+            if (!confirm('Delete all hotspots?')) return;
+
+            hotspots = [];
+
+            renderHotspots();
+
+            saveSaved();
+
+            info.style.display = 'none';
+
+        });
+
+
+    window.addEventListener('resize', onResize);
+
+    animate();
+
+}
+
+
+/* =================================
+   STOP ADDING HOTSPOTS
+================================= */
+
+function stopAdding() {
+
+    adding = false;
+
+    finishBtn.disabled = true;
+
+    renderer.domElement.style.cursor = 'grab';
+
+    setStatus(
+        'Hotspot mode off. Drag to rotate the model.'
+    );
+
+}
+
+
+/* =================================
+   ADD HOTSPOT TO MODEL
+================================= */
+
+function onModelClick(event) {
+
+    if (!adding || !mesh) return;
+
+    if (event.target !== renderer.domElement) return;
+
+
+    const rect = renderer.domElement.getBoundingClientRect();
+
+    pointer.x =
+        ((event.clientX - rect.left) / rect.width) * 2 - 1;
+
+    pointer.y =
+        -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+
+    raycaster.setFromCamera(pointer, camera);
+
+    const hits = raycaster.intersectObject(mesh, false);
+
+    if (!hits.length) return;
+
+
+    /* Ask tutor for hotspot information */
+
+    const title = prompt('Hotspot title:');
+
+    if (title === null || !title.trim()) return;
+
+    const description = prompt(
+        'Information to show when the hotspot is selected:',
+        ''
+    ) ?? '';
+
+
+    /* Convert world position into model coordinates */
+
+    const localPoint = mesh.worldToLocal(
+        hits[0].point.clone()
+    );
+
+
+    hotspots.push({
+
+        id: nextId++,
+
+        title: title.trim(),
+
+        description,
+
+        point: localPoint.toArray()
+
+    });
+
+
+    renderHotspots();
+
+    saveSaved();
+
+    stopAdding();
+
+    setStatus(`Hotspot added: ${title.trim()}`);
+
+}
+
+
+/* =================================
+   DISPLAY HOTSPOTS
+================================= */
+
+function renderHotspots() {
+
+    layer.innerHTML = '';
+
+    hotspots.forEach((item, index) => {
+
+        const button = document.createElement('button');
+
+        button.className = 'hotspot';
+
+        button.type = 'button';
+
+        button.textContent = String(index + 1);
+
+        button.title = item.title;
+
+        button.setAttribute(
+            'aria-label',
+            `Hotspot ${index + 1}: ${item.title}`
+        );
+
+
+        button.addEventListener('click', event => {
+
+            event.stopPropagation();
+
+            infoTitle.textContent = item.title;
+
+            infoText.textContent = item.description;
+
+            info.style.display = 'block';
+
+        });
+
+
+        layer.appendChild(button);
+
+        item.element = button;
+
+    });
+
+}
+
+
+/* =================================
+   KEEP HOTSPOTS ATTACHED TO MODEL
+================================= */
+
+function updateHotspotPositions() {
+
+    if (!mesh) return;
+
+    const width = viewer.clientWidth;
+
+    const height = viewer.clientHeight;
+
+
+    hotspots.forEach(item => {
+
+        /* Convert local coordinates to world coordinates */
+
+        const world = mesh.localToWorld(
+            new THREE.Vector3(...item.point)
+        );
+
+
+        /* Project 3D position onto screen */
+
+        const projected = world.project(camera);
+
+
+        const visible =
+            projected.z > -1 &&
+            projected.z < 1 &&
+            Math.abs(projected.x) <= 1.08 &&
+            Math.abs(projected.y) <= 1.08;
+
+
+        item.element.style.display =
+            visible ? 'grid' : 'none';
+
+
+        if (visible) {
+
+            item.element.style.left =
+                `${(projected.x * 0.5 + 0.5) * width}px`;
+
+            item.element.style.top =
+                `${(-projected.y * 0.5 + 0.5) * height}px`;
+
+        }
+
+    });
+
+}
+
+
+/* =================================
+   SAVE HOTSPOTS IN BROWSER
+================================= */
+
+function saveSaved() {
+
+    try {
+
+        localStorage.setItem(
+            'stl-hotspots:' + modelUrl,
+
+            JSON.stringify(
+                hotspots.map(
+                    ({id, title, description, point}) =>
+                    ({id, title, description, point})
+                )
+            )
+        );
+
+    } catch (e) {
+
+        console.warn(
+            'Could not save hotspots in this browser.',
+            e
+        );
+
+    }
+
+}
+
+
+/* =================================
+   LOAD SAVED HOTSPOTS
+================================= */
+
+function loadSaved() {
+
+    try {
+
+        const saved = JSON.parse(
+            localStorage.getItem(
+                'stl-hotspots:' + modelUrl
+            ) || '[]'
+        );
+
+
+        if (Array.isArray(saved)) {
+
+            hotspots = saved.filter(
+                x => x &&
+                Array.isArray(x.point) &&
+                x.point.length === 3
+            );
+
+            nextId = hotspots.reduce(
+                (m, x) => Math.max(m, Number(x.id) || 0),
+                0
+            ) + 1;
+
+            renderHotspots();
+
+            if (hotspots.length) {
+
+                setStatus(
+                    `Model loaded with ${hotspots.length} saved hotspot(s).`
+                );
+
+            }
+
+        }
+
+    } catch (e) {
+
+        console.warn(
+            'Could not restore saved hotspots.',
+            e
+        );
+
+    }
+
+}
+
+
+/* =================================
+   EXPORT LABELS
+================================= */
+
+function exportLabels() {
+
+    const data = hotspots.map(
+        ({id, title, description, point}) =>
+        ({id, title, description, point})
+    );
+
+
+    const blob = new Blob(
+        [
+            JSON.stringify(
+                {modelUrl, hotspots: data},
+                null,
+                2
+            )
+        ],
+        {type: 'application/json'}
+    );
+
+
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+
+    a.href = url;
+
+    a.download = 'stl-hotspot-labels.json';
+
+    a.click();
+
+    URL.revokeObjectURL(url);
+
+}
+
+
+/* =================================
+   IMPORT LABELS
+================================= */
+
+function importLabels(event) {
+
+    const file = event.target.files[0];
+
+    if (!file) return;
+
+
+    const reader = new FileReader();
+
+
+    reader.onload = () => {
+
+        try {
+
+            const parsed = JSON.parse(reader.result);
+
+            const list = Array.isArray(parsed)
+                ? parsed
+                : parsed.hotspots;
+
+
+            if (!Array.isArray(list)) {
+
+                throw new Error('No hotspots array found');
+
+            }
+
+
+            hotspots = list.filter(
+                x => x &&
+                Array.isArray(x.point) &&
+                x.point.length === 3
+            ).map((x, i) => ({
+
+                id: Number(x.id) || i + 1,
+
+                title: String(
+                    x.title || `Hotspot ${i + 1}`
+                ),
+
+                description: String(
+                    x.description || ''
+                ),
+
+                point: x.point.map(Number)
+
+            }));
+
+
+            nextId = hotspots.reduce(
+                (m, x) => Math.max(m, x.id),
+                0
+            ) + 1;
+
+
+            renderHotspots();
+
+            saveSaved();
+
+            setStatus(
+                `Imported ${hotspots.length} hotspot(s).`
+            );
+
+
+        } catch (err) {
+
+            alert(
+                'Could not import this file: ' + err.message
+            );
+
+        }
+
+        event.target.value = '';
+
+    };
+
+
+    reader.readAsText(file);
+
+}
+
+
+/* =================================
+   RESIZE VIEWER
+================================= */
+
+function onResize() {
+
+    if (!camera || !renderer) return;
+
+    camera.aspect =
+        viewer.clientWidth / viewer.clientHeight;
+
+    camera.updateProjectionMatrix();
+
+    renderer.setSize(
+        viewer.clientWidth,
+        viewer.clientHeight
+    );
+
+}
+
+
+/* =================================
+   ANIMATION LOOP
+================================= */
+
+function animate() {
+
+    requestAnimationFrame(animate);
+
+    if (controls) controls.update();
+
+    if (renderer && scene && camera) {
+
+        renderer.render(scene, camera);
+
+        updateHotspotPositions();
+
+    }
+
+}
+
+
+/* START */
+
+init();
+
+</script>
+
+</body>
+</html>
