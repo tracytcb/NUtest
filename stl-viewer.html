@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -218,7 +217,7 @@ let originalTarget = new THREE.Vector3(0, 0, 0);
 const loader = new STLLoader();
 
 const material = new THREE.MeshStandardMaterial({
-    color: 0xcccccc,
+    color: 0x397ca8,
     metalness: 0.2,
     roughness: 0.55
 });
@@ -281,9 +280,9 @@ function loadSTL(geometry, name) {
 
     originalCameraPosition.copy(camera.position);
     originalTarget.set(0, 0, 0);
-  
-  grid.scale.setScalar(
-    maxDimension / 200
+
+    grid.scale.setScalar(
+        maxDimension / 200
     );
 
     document.getElementById('filename').textContent =
@@ -324,12 +323,10 @@ function loadFromURL(url) {
             loadSTL(geometry, 'STL model');
         },
         undefined,
-    function(error) {
-    console.error('STL loading error:', error);
-
-    if (!currentModel) {
-        document.getElementById('filename').textContent =
-            'Could not load model';
+        function(error) {
+            console.error('STL loading error:', error);
+            document.getElementById('filename').textContent =
+                'Could not load model';
         }
     );
 
