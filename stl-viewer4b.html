@@ -3,95 +3,182 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>Interactive STL Viewer</title>
+<title>Interactive STL Labelling Activity</title>
 
 <style>
-    * {
-        box-sizing: border-box;
-    }
+* { box-sizing: border-box; }
 
-    body {
-        margin: 0;
-        font-family: Arial, sans-serif;
-        background: #f0f2f5;
-        overflow: hidden;
-    }
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #f0f2f5;
+    overflow: hidden;
+}
 
-    #viewer {
-        width: 100%;
-        height: 100vh;
-        position: relative;
-        background: #e8edf2;
-    }
+#viewer {
+    width: 100%;
+    height: 100vh;
+    position: relative;
+    background: #e8edf2;
+}
 
-    #toolbar {
-        position: absolute;
-        top: 10px;
-        left: 10px;
-        right: 10px;
-        z-index: 10;
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        align-items: center;
-    }
+canvas { display: block; }
 
+#toolbar {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    z-index: 10;
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+button, .file-label {
+    border: none;
+    border-radius: 5px;
+    padding: 9px 12px;
+    background: #245a85;
+    color: white;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+button:hover, .file-label:hover {
+    background: #173e60;
+}
+
+button.active { background: #16804a; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+#fileInput, #activityInput { display: none; }
+
+#filename {
+    font-size: 12px;
+    color: #333;
+    background: rgba(255,255,255,.9);
+    padding: 8px;
+    border-radius: 5px;
+}
+
+#panel {
+    position: absolute;
+    top: 65px;
+    right: 10px;
+    width: 290px;
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+    background: rgba(255,255,255,.96);
+    border-radius: 8px;
+    padding: 14px;
+    z-index: 10;
+    box-shadow: 0 2px 12px rgba(0,0,0,.15);
+}
+
+#panel h3 {
+    margin: 0 0 10px;
+    font-size: 17px;
+    color: #245a85;
+}
+
+#panel p {
+    font-size: 12px;
+    color: #555;
+    line-height: 1.5;
+}
+
+.hotspot-row {
+    border-top: 1px solid #ddd;
+    padding: 9px 0;
+    font-size: 13px;
+}
+
+.hotspot-row label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.hotspot-row input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.hotspot-row.correct { background: #e4f5e9; }
+.hotspot-row.incorrect { background: #fbe5e5; }
+
+.feedback {
+    font-size: 12px;
+    margin-top: 5px;
+    font-weight: bold;
+}
+
+#results {
+    margin-top: 12px;
+    padding: 12px;
+    background: #e8edf2;
+    border-radius: 5px;
+    font-weight: bold;
+    font-size: 14px;
+    display: none;
+}
+
+#instructions {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    background: rgba(255,255,255,.9);
+    padding: 9px 12px;
+    border-radius: 5px;
+    font-size: 12px;
+    z-index: 5;
+    pointer-events: none;
+}
+
+#dropMessage {
+    position: absolute;
+    inset: 0;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    background: rgba(36,90,133,.2);
+    border: 4px dashed #245a85;
+    z-index: 20;
+    font-size: 22px;
+    color: #173e60;
+    pointer-events: none;
+}
+
+#modeLabel {
+    background: white;
+    border-radius: 5px;
+    padding: 8px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+#status {
+    font-size: 12px;
+    color: #245a85;
+    margin-top: 8px;
+}
+
+@media(max-width:600px) {
+    #panel {
+        width: 230px;
+        top: 105px;
+        max-height: calc(100vh - 155px);
+    }
     button, .file-label {
-        border: none;
-        border-radius: 5px;
-        padding: 9px 13px;
-        background: #245a85;
-        color: white;
-        cursor: pointer;
-        font-size: 13px;
-    }
-
-    button:hover, .file-label:hover {
-        background: #173e60;
-    }
-
-    #fileInput {
-        display: none;
-    }
-
-    #filename {
-        font-size: 12px;
-        color: #333;
-        background: rgba(255,255,255,0.85);
         padding: 8px;
-        border-radius: 5px;
+        font-size: 11px;
     }
-
-    #instructions {
-        position: absolute;
-        bottom: 10px;
-        left: 10px;
-        background: rgba(255,255,255,0.85);
-        padding: 8px 12px;
-        border-radius: 5px;
-        font-size: 12px;
-        color: #333;
-        pointer-events: none;
-    }
-
-    #dropMessage {
-        position: absolute;
-        inset: 0;
-        display: none;
-        justify-content: center;
-        align-items: center;
-        background: rgba(36,90,133,0.2);
-        border: 4px dashed #245a85;
-        z-index: 20;
-        font-size: 22px;
-        color: #173e60;
-        pointer-events: none;
-    }
-
-    canvas {
-        display: block;
-    }
+}
 </style>
 </head>
 
@@ -99,31 +186,57 @@
 
 <div id="viewer">
 
-    <div id="toolbar">
+<div id="toolbar">
 
-        <label class="file-label" for="fileInput">
-            Load STL
-        </label>
+<label class="file-label" for="fileInput">Load STL</label>
+<input type="file" id="fileInput" accept=".stl">
 
-        <input type="file" id="fileInput" accept=".stl">
+<button id="tutorButton" class="active">Tutor Mode</button>
+<button id="studentButton">Student Mode</button>
 
-        <button id="resetButton">Reset View</button>
+<button id="addButton">+ Add Hotspot</button>
 
-        <button id="wireButton">Wireframe</button>
+<button id="saveButton">Save Activity</button>
 
-     
+<label class="file-label" for="activityInput">Load Activity</label>
+<input type="file" id="activityInput" accept=".json">
 
-    </div>
+<button id="resetButton">Reset View</button>
+<button id="wireButton">Wireframe</button>
 
-    <div id="instructions">
-        Left click + drag: Rotate |
-        Right click + drag: Pan |
-        Scroll: Zoom
-    </div>
+<span id="modeLabel">TUTOR MODE</span>
+<span id="filename">No STL loaded</span>
 
-    <div id="dropMessage">
-        Drop STL file here
-    </div>
+</div>
+
+<div id="panel">
+
+<h3 id="panelTitle">Tutor Mode</h3>
+
+<p id="panelInstructions">
+Load an STL model, select Add Hotspot, then click a position on the model.
+Enter the correct name for each hotspot.
+</p>
+
+<div id="hotspotList"></div>
+
+<div id="results"></div>
+
+<div id="status"></div>
+
+<button id="submitButton" style="display:none;width:100%;margin-top:12px;background:#16804a;">
+Submit Answers
+</button>
+
+</div>
+
+<div id="instructions">
+Left click + drag: Rotate |
+Right click + drag: Pan |
+Scroll: Zoom
+</div>
+
+<div id="dropMessage">Drop STL file here</div>
 
 </div>
 
@@ -146,7 +259,9 @@ import { OrbitControls } from
 import { STLLoader } from
 'three/addons/loaders/STLLoader.js';
 
-// Scene setup
+// ===================================
+// SCENE SETUP
+// ===================================
 
 const container = document.getElementById('viewer');
 
@@ -192,7 +307,7 @@ const light2 = new THREE.DirectionalLight(0xffffff, 1);
 light2.position.set(-100, -100, -100);
 scene.add(light2);
 
-// Orbit controls
+// Controls
 
 const controls = new OrbitControls(
     camera,
@@ -205,15 +320,15 @@ controls.enableZoom = true;
 controls.enablePan = true;
 controls.rotateSpeed = 0.8;
 
-// Grid
-
-const grid = null;
-
-// Model
+// ===================================
+// MODEL AND HOTSPOT DATA
+// ===================================
 
 let currentModel = null;
-let originalCameraPosition = new THREE.Vector3(150, 150, 200);
-let originalTarget = new THREE.Vector3(0, 0, 0);
+let modelSize = 100;
+
+let originalCameraPosition = new THREE.Vector3();
+let originalTarget = new THREE.Vector3();
 
 const loader = new STLLoader();
 
@@ -223,7 +338,155 @@ const material = new THREE.MeshStandardMaterial({
     roughness: 0.55
 });
 
-// Load STL geometry
+let hotspots = [];
+let hotspotSprites = [];
+
+let tutorMode = true;
+let addingHotspot = false;
+let submitted = false;
+let wireframe = false;
+
+let nextNumber = 1;
+
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+
+// ===================================
+// SCORM SUPPORT
+// ===================================
+
+let scormAPI = null;
+let scormVersion = null;
+let scormInitialised = false;
+
+function findSCORM() {
+
+    let win = window;
+
+    for (let i = 0; i < 20; i++) {
+
+        try {
+
+            if (win.API_1484_11) {
+                scormVersion = '2004';
+                return win.API_1484_11;
+            }
+
+            if (win.API) {
+                scormVersion = '1.2';
+                return win.API;
+            }
+
+            if (win.parent === win) break;
+
+            win = win.parent;
+
+        } catch (e) {
+            break;
+        }
+    }
+
+    try {
+        if (window.opener) {
+            if (window.opener.API_1484_11) {
+                scormVersion = '2004';
+                return window.opener.API_1484_11;
+            }
+
+            if (window.opener.API) {
+                scormVersion = '1.2';
+                return window.opener.API;
+            }
+        }
+    } catch(e) {}
+
+    return null;
+}
+
+function initialiseSCORM() {
+
+    scormAPI = findSCORM();
+
+    if (!scormAPI) {
+        console.log('SCORM API not found. Running without LMS reporting.');
+        return;
+    }
+
+    try {
+
+        let result;
+
+        if (scormVersion === '2004') {
+            result = scormAPI.Initialize('');
+        } else {
+            result = scormAPI.LMSInitialize('');
+        }
+
+        scormInitialised = result === true || result === 'true';
+
+        console.log('SCORM initialised:', scormInitialised);
+
+    } catch(e) {
+        console.error('SCORM initialisation error:', e);
+    }
+}
+
+function sendScoreToSCORM(score) {
+
+    if (!scormAPI || !scormInitialised) {
+        console.log('SCORM score:', score);
+        return;
+    }
+
+    try {
+
+        if (scormVersion === '2004') {
+
+            scormAPI.SetValue('cmi.score.raw', String(score));
+            scormAPI.SetValue('cmi.score.min', '0');
+            scormAPI.SetValue('cmi.score.max', '100');
+            scormAPI.SetValue('cmi.completion_status', 'completed');
+
+            scormAPI.Commit('');
+
+        } else {
+
+            scormAPI.LMSSetValue('cmi.core.score.raw', String(score));
+            scormAPI.LMSSetValue('cmi.core.score.min', '0');
+            scormAPI.LMSSetValue('cmi.core.score.max', '100');
+            scormAPI.LMSSetValue('cmi.core.lesson_status', 'completed');
+
+            scormAPI.LMSCommit('');
+
+        }
+
+    } catch(e) {
+        console.error('SCORM score submission error:', e);
+    }
+}
+
+function finishSCORM() {
+
+    if (!scormAPI || !scormInitialised) return;
+
+    try {
+
+        if (scormVersion === '2004') {
+            scormAPI.Terminate('');
+        } else {
+            scormAPI.LMSFinish('');
+        }
+
+    } catch(e) {}
+}
+
+window.addEventListener('pagehide', finishSCORM);
+
+initialiseSCORM();
+
+// ===================================
+// LOAD STL
+// ===================================
 
 function loadSTL(geometry, name) {
 
@@ -233,14 +496,15 @@ function loadSTL(geometry, name) {
     if (currentModel) {
         scene.remove(currentModel);
         currentModel.geometry.dispose();
+        currentModel.material.dispose();
     }
+
+    clearSprites();
 
     const model = new THREE.Mesh(
         geometry,
         material.clone()
     );
-
-    // Centre model at origin
 
     const centre = new THREE.Vector3();
 
@@ -251,30 +515,27 @@ function loadSTL(geometry, name) {
     currentModel = model;
     scene.add(currentModel);
 
-    // Automatically position camera
-
     const size = new THREE.Vector3();
 
     geometry.boundingBox.getSize(size);
 
-    const maxDimension = Math.max(
+    modelSize = Math.max(
         size.x,
         size.y,
         size.z,
         1
     );
 
-    const distance = maxDimension * 0.5;
+    const distance = modelSize * 1.2;
 
-
-camera.position.set(
-    distance,
-    -distance * 7,
-    0
+    camera.position.set(
+        distance,
+        -distance * 1.2,
+        distance * 0.3
     );
 
-    camera.near = maxDimension / 1000;
-    camera.far = maxDimension * 100;
+    camera.near = modelSize / 1000;
+    camera.far = modelSize * 100;
     camera.updateProjectionMatrix();
 
     controls.target.set(0, 0, 0);
@@ -283,16 +544,559 @@ camera.position.set(
     originalCameraPosition.copy(camera.position);
     originalTarget.set(0, 0, 0);
 
-    grid.scale.setScalar(
-        maxDimension / 200
+    document.getElementById('filename').textContent = name;
+
+    drawHotspots();
+}
+
+// ===================================
+// HOTSPOT MARKERS
+// ===================================
+
+function createMarker(number) {
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+
+    const ctx = canvas.getContext('2d');
+
+    ctx.beginPath();
+    ctx.arc(64, 64, 56, 0, Math.PI * 2);
+    ctx.fillStyle = '#0876cf';
+    ctx.fill();
+
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = 'white';
+    ctx.stroke();
+
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 58px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(number), 64, 66);
+
+    const texture = new THREE.CanvasTexture(canvas);
+
+    const sprite = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+            map: texture,
+            transparent: true,
+            depthTest: true,
+            depthWrite: false
+        })
     );
 
-    document.getElementById('filename').textContent =
-        name;
+    const markerSize = modelSize * 0.055;
+
+    sprite.scale.set(markerSize, markerSize, 1);
+
+    return sprite;
+}
+
+function clearSprites() {
+
+    hotspotSprites.forEach(sprite => {
+
+        scene.remove(sprite);
+
+        if (sprite.material.map) {
+            sprite.material.map.dispose();
+        }
+
+        sprite.material.dispose();
+
+    });
+
+    hotspotSprites = [];
+}
+
+function drawHotspots() {
+
+    clearSprites();
+
+    if (!currentModel) return;
+
+    hotspots.forEach(hotspot => {
+
+        const sprite = createMarker(hotspot.number);
+
+        const position = new THREE.Vector3(
+            hotspot.x,
+            hotspot.y,
+            hotspot.z
+        );
+
+        const normal = new THREE.Vector3(
+            hotspot.nx || 0,
+            hotspot.ny || 0,
+            hotspot.nz || 1
+        );
+
+        position.add(
+            normal.multiplyScalar(modelSize * 0.008)
+        );
+
+        sprite.position.copy(position);
+
+        currentModel.add(sprite);
+
+        hotspotSprites.push(sprite);
+
+    });
+}
+
+// ===================================
+// ADD HOTSPOT TO MODEL
+// ===================================
+
+function addHotspot(event) {
+
+    if (!currentModel || !addingHotspot || !tutorMode) return;
+
+    const rect = renderer.domElement.getBoundingClientRect();
+
+    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    raycaster.setFromCamera(pointer, camera);
+
+    const intersections = raycaster.intersectObject(
+        currentModel,
+        false
+    );
+
+    if (intersections.length === 0) return;
+
+    const hit = intersections[0];
+
+    const localPoint = currentModel.worldToLocal(
+        hit.point.clone()
+    );
+
+    const localNormal = hit.face
+        ? hit.face.normal.clone().normalize()
+        : new THREE.Vector3(0, 0, 1);
+
+    const hotspot = {
+        number: nextNumber++,
+        x: localPoint.x,
+        y: localPoint.y,
+        z: localPoint.z,
+        nx: localNormal.x,
+        ny: localNormal.y,
+        nz: localNormal.z,
+        answer: ''
+    };
+
+    hotspots.push(hotspot);
+
+    drawHotspots();
+    renderHotspotList();
+
+    document.getElementById('status').textContent =
+        'Hotspot ' + hotspot.number + ' added. Enter its correct name.';
+
+    // Turn off placement after each click
+    addingHotspot = false;
+
+    document.getElementById('addButton').classList.remove('active');
+    document.getElementById('addButton').textContent = '+ Add Hotspot';
 
 }
 
-// File input
+// Only register clicks, not rotation drags
+
+let pointerStart = null;
+
+renderer.domElement.addEventListener('pointerdown', function(e) {
+    pointerStart = {
+        x: e.clientX,
+        y: e.clientY
+    };
+});
+
+renderer.domElement.addEventListener('pointerup', function(e) {
+
+    if (!pointerStart) return;
+
+    const distance = Math.hypot(
+        e.clientX - pointerStart.x,
+        e.clientY - pointerStart.y
+    );
+
+    pointerStart = null;
+
+    if (distance < 5) {
+        addHotspot(e);
+    }
+
+});
+
+// ===================================
+// TUTOR / STUDENT MODE
+// ===================================
+
+function setMode(isTutor) {
+
+    tutorMode = isTutor;
+    addingHotspot = false;
+    submitted = false;
+
+    document.getElementById('tutorButton')
+        .classList.toggle('active', isTutor);
+
+    document.getElementById('studentButton')
+        .classList.toggle('active', !isTutor);
+
+    document.getElementById('modeLabel').textContent =
+        isTutor ? 'TUTOR MODE' : 'STUDENT MODE';
+
+    document.getElementById('panelTitle').textContent =
+        isTutor ? 'Tutor Mode' : 'Student Mode';
+
+    document.getElementById('panelInstructions').textContent =
+        isTutor
+        ? 'Click Add Hotspot, then click a position on the 3D model. Enter the correct answer.'
+        : 'Identify each numbered structure by entering its name. Submit your answers when finished.';
+
+    document.getElementById('addButton').style.display =
+        isTutor ? 'inline-block' : 'none';
+
+    document.getElementById('saveButton').style.display =
+        isTutor ? 'inline-block' : 'none';
+
+    document.getElementById('submitButton').style.display =
+        isTutor ? 'none' : 'block';
+
+    document.getElementById('results').style.display = 'none';
+
+    renderHotspotList();
+
+}
+
+document.getElementById('tutorButton')
+    .addEventListener('click', () => setMode(true));
+
+document.getElementById('studentButton')
+    .addEventListener('click', () => setMode(false));
+
+// ===================================
+// HOTSPOT LIST
+// ===================================
+
+function renderHotspotList() {
+
+    const list = document.getElementById('hotspotList');
+
+    list.innerHTML = '';
+
+    hotspots.forEach((hotspot, index) => {
+
+        const row = document.createElement('div');
+        row.className = 'hotspot-row';
+        row.dataset.number = hotspot.number;
+
+        if (tutorMode) {
+
+            const label = document.createElement('label');
+            label.textContent = 'Hotspot ' + hotspot.number;
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.placeholder = 'Enter correct anatomical name';
+            input.value = hotspot.answer || '';
+
+            input.addEventListener('input', function() {
+                hotspot.answer = this.value;
+            });
+
+            row.appendChild(label);
+            row.appendChild(input);
+
+            const remove = document.createElement('button');
+            remove.textContent = 'Remove';
+            remove.style.marginTop = '6px';
+            remove.style.background = '#a83d3d';
+
+            remove.addEventListener('click', function() {
+
+                hotspots.splice(index, 1);
+
+                // Renumber remaining hotspots
+                hotspots.forEach((item, i) => {
+                    item.number = i + 1;
+                });
+
+                nextNumber = hotspots.length + 1;
+
+                drawHotspots();
+                renderHotspotList();
+
+            });
+
+            row.appendChild(remove);
+
+        } else {
+
+            const label = document.createElement('label');
+            label.textContent = 'Hotspot ' + hotspot.number;
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.placeholder = 'Enter your answer';
+            input.autocomplete = 'off';
+
+            input.id = 'studentAnswer' + hotspot.number;
+
+            row.appendChild(label);
+            row.appendChild(input);
+
+        }
+
+        list.appendChild(row);
+
+    });
+
+}
+
+// ===================================
+// AUTOMATIC MARKING
+// ===================================
+
+function normaliseAnswer(value) {
+
+    return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, ' ');
+
+}
+
+document.getElementById('submitButton')
+.addEventListener('click', function() {
+
+    if (submitted) return;
+
+    if (hotspots.length === 0) {
+        alert('There are no hotspots in this activity.');
+        return;
+    }
+
+    let correct = 0;
+
+    hotspots.forEach(hotspot => {
+
+        const input = document.getElementById(
+            'studentAnswer' + hotspot.number
+        );
+
+        const studentAnswer = normaliseAnswer(input.value);
+        const correctAnswer = normaliseAnswer(hotspot.answer);
+
+        const isCorrect =
+            correctAnswer !== '' &&
+            studentAnswer === correctAnswer;
+
+        const row = input.parentElement;
+
+        row.classList.remove('correct', 'incorrect');
+
+        row.classList.add(
+            isCorrect ? 'correct' : 'incorrect'
+        );
+
+        const feedback = document.createElement('div');
+        feedback.className = 'feedback';
+
+        if (isCorrect) {
+
+            correct++;
+
+            feedback.textContent = 'Correct';
+
+        } else {
+
+            feedback.textContent =
+                'Incorrect. Correct answer: ' + hotspot.answer;
+
+        }
+
+        row.appendChild(feedback);
+
+        input.disabled = true;
+
+    });
+
+    const percentage = Math.round(
+        (correct / hotspots.length) * 100
+    );
+
+    const results = document.getElementById('results');
+
+    results.style.display = 'block';
+
+    results.innerHTML =
+        'Results: ' + correct + ' / ' + hotspots.length +
+        '<br>Score: ' + percentage + '%';
+
+    document.getElementById('status').textContent =
+        'Your answers have been submitted.';
+
+    this.disabled = true;
+
+    submitted = true;
+
+    sendScoreToSCORM(percentage);
+
+});
+
+// ===================================
+// SAVE ACTIVITY
+// ===================================
+
+document.getElementById('saveButton')
+.addEventListener('click', function() {
+
+    if (hotspots.length === 0) {
+        alert('Please add at least one hotspot.');
+        return;
+    }
+
+    for (const hotspot of hotspots) {
+        if (!hotspot.answer.trim()) {
+            alert('Please enter the correct answer for every hotspot.');
+            return;
+        }
+    }
+
+    const activity = {
+
+        title: 'STL Labelling Activity',
+
+        version: 1,
+
+        hotspots: hotspots
+
+    };
+
+    const blob = new Blob(
+        [JSON.stringify(activity, null, 2)],
+        { type: 'application/json' }
+    );
+
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = 'STL-Activity.json';
+
+    link.click();
+
+    URL.revokeObjectURL(url);
+
+    document.getElementById('status').textContent =
+        'Activity saved successfully.';
+
+});
+
+// ===================================
+// LOAD ACTIVITY
+// ===================================
+
+document.getElementById('activityInput')
+.addEventListener('change', function(event) {
+
+    const file = event.target.files[0];
+
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+
+        try {
+
+            const activity = JSON.parse(e.target.result);
+
+            if (!Array.isArray(activity.hotspots)) {
+                throw new Error('Invalid activity file');
+            }
+
+            hotspots = activity.hotspots.map((h, i) => ({
+
+                number: i + 1,
+
+                x: Number(h.x),
+                y: Number(h.y),
+                z: Number(h.z),
+
+                nx: Number(h.nx) || 0,
+                ny: Number(h.ny) || 0,
+                nz: Number(h.nz) || 1,
+
+                answer: String(h.answer || '')
+
+            }));
+
+            nextNumber = hotspots.length + 1;
+
+            submitted = false;
+
+            drawHotspots();
+
+            setMode(false);
+
+            document.getElementById('status').textContent =
+                'Activity loaded. Student mode is ready.';
+
+        } catch(error) {
+
+            alert('Could not load activity file. Please check the JSON file.');
+
+            console.error(error);
+
+        }
+
+    };
+
+    reader.readAsText(file);
+
+    event.target.value = '';
+
+});
+
+// ===================================
+// ADD HOTSPOT BUTTON
+// ===================================
+
+document.getElementById('addButton')
+.addEventListener('click', function() {
+
+    if (!currentModel) {
+        alert('Please load an STL model first.');
+        return;
+    }
+
+    addingHotspot = !addingHotspot;
+
+    this.classList.toggle('active', addingHotspot);
+
+    this.textContent = addingHotspot
+        ? 'Click model to place hotspot'
+        : '+ Add Hotspot';
+
+    document.getElementById('status').textContent =
+        addingHotspot
+        ? 'Click on the 3D model to place a hotspot.'
+        : '';
+
+});
+
+// ===================================
+// LOAD STL FILE
+// ===================================
 
 document.getElementById('fileInput')
 .addEventListener('change', function(event) {
@@ -313,28 +1117,38 @@ document.getElementById('fileInput')
 
     reader.readAsArrayBuffer(file);
 
+    event.target.value = '';
+
 });
 
-// Load STL from URL
+// ===================================
+// LOAD STL FROM URL
+// ===================================
 
 function loadFromURL(url) {
 
     loader.load(
+
         url,
+
         function(geometry) {
             loadSTL(geometry, 'STL model');
         },
+
         undefined,
+
         function(error) {
+
             console.error('STL loading error:', error);
+
             document.getElementById('filename').textContent =
                 'Could not load model';
+
         }
+
     );
 
 }
-
-// Automatically load STL from iframe URL parameter
 
 const params = new URLSearchParams(window.location.search);
 
@@ -344,20 +1158,24 @@ if (modelURL) {
     loadFromURL(modelURL);
 }
 
-// Reset camera
+// ===================================
+// RESET VIEW
+// ===================================
 
 document.getElementById('resetButton')
 .addEventListener('click', function() {
 
     camera.position.copy(originalCameraPosition);
+
     controls.target.copy(originalTarget);
+
     controls.update();
 
 });
 
-// Wireframe toggle
-
-let wireframe = false;
+// ===================================
+// WIREFRAME
+// ===================================
 
 document.getElementById('wireButton')
 .addEventListener('click', function() {
@@ -374,24 +1192,32 @@ document.getElementById('wireButton')
 
 });
 
-// Drag and drop
+// ===================================
+// DRAG AND DROP
+// ===================================
 
 const dropMessage = document.getElementById('dropMessage');
 
 container.addEventListener('dragover', function(e) {
+
     e.preventDefault();
+
     dropMessage.style.display = 'flex';
+
 });
 
 container.addEventListener('dragleave', function(e) {
+
     if (!container.contains(e.relatedTarget)) {
         dropMessage.style.display = 'none';
     }
+
 });
 
 container.addEventListener('drop', function(e) {
 
     e.preventDefault();
+
     dropMessage.style.display = 'none';
 
     const file = e.dataTransfer.files[0];
@@ -414,7 +1240,9 @@ container.addEventListener('drop', function(e) {
 
 });
 
-// Responsive resizing
+// ===================================
+// RESIZE
+// ===================================
 
 window.addEventListener('resize', function() {
 
@@ -430,7 +1258,9 @@ window.addEventListener('resize', function() {
 
 });
 
-// Animation loop
+// ===================================
+// ANIMATION
+// ===================================
 
 function animate() {
 
