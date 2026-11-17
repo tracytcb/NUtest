@@ -266,9 +266,9 @@ function loadSTL(geometry, name) {
     const distance = maxDimension * 2.2;
 
 camera.position.set(
-    distance,
-    distance,
-   distance
+    0,
+    0,
+   -distance
     );
 
     camera.near = maxDimension / 1000;
