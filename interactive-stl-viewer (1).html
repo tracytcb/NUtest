@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive 3D STL Learning Viewer</title>
+<style>
+  :root { color-scheme: light; --ink:#202733; --muted:#647184; --line:#d9e0e8; --blue:#245ea8; --panel:#fff; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; width:100%; height:100%; overflow:hidden; font-family:Arial,Helvetica,sans-serif; color:var(--ink); background:#eef2f6; }
+  #app { height:100%; display:flex; flex-direction:column; }
+  header { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:9px 12px; background:#fff; border-bottom:1px solid var(--line); z-index:3; }
+  header strong { margin-right:8px; }
+  button, select, input, textarea { font:inherit; }
+  button, select { border:1px solid #bdc8d5; border-radius:6px; background:#fff; color:var(--ink); padding:7px 10px; cursor:pointer; }
+  button:hover { background:#f1f5fa; }
+  button.active { background:#e6f0ff; border-color:#6b9bd5; color:#174b87; }
+  button.primary { background:var(--blue); border-color:var(--blue); color:white; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  #main { flex:1; min-height:0; display:flex; }
+  #stage { position:relative; flex:1; min-width:0; background:#f4f6f8; }
+  #viewer { position:absolute; inset:0; }
+  #viewer canvas { display:block; width:100%; height:100%; outline:none; }
+  #side { width:310px; max-width:42%; overflow:auto; padding:14px; background:var(--panel); border-left:1px solid var(--line); }
+  h2 { font-size:17px; margin:0 0 10px; }
+  h3 { font-size:14px; margin:15px 0 7px; }
+  p { font-size:13px; line-height:1.45; color:var(--muted); }
+  label { display:block; font-size:12px; font-weight:700; margin:10px 0 5px; }
+  input[type=text], textarea, select.full { width:100%; border:1px solid #c8d1dc; border-radius:6px; padding:8px; background:#fff; }
+  textarea { min-height:72px; resize:vertical; }
+  .row { display:flex; gap:7px; align-items:center; flex-wrap:wrap; }
+  .row > * { flex:1; }
+  .small { font-size:11px; color:var(--muted); }
+  #status { position:absolute; bottom:10px; left:10px; max-width:calc(100% - 20px); padding:7px 10px; background:rgba(255,255,255,.94); border:1px solid var(--line); border-radius:6px; font-size:12px; pointer-events:none; }
+  #loadError { color:#a32929; white-space:pre-wrap; }
+  #quizBox { display:none; padding:10px; border:1px solid #cbd8e8; border-radius:8px; background:#f5f9ff; margin-top:12px; }
+  #quizPrompt { font-weight:700; font-size:14px; line-height:1.4; }
+  #feedback { font-size:13px; font-weight:700; margin-top:8px; }
+  #hotspotList { padding:0; margin:8px 0; list-style:none; }
+  #hotspotList li { display:flex; gap:6px; align-items:center; border-top:1px solid #edf0f4; padding:7px 0; font-size:12px; }
+  #hotspotList li button { padding:4px 7px; font-size:11px; }
+  #hotspotList .name { flex:1; }
+  .hidden { display:none !important; }
+  @media (max-width:700px) {
+    #main { flex-direction:column; }
+    #side { width:100%; max-width:none; max-height:42%; border-left:0; border-top:1px solid var(--line); }
+    #stage { min-height:220px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <strong>3D Model Viewer</strong>
+    <button class="mode active" data-mode="explore">Explore</button>
+    <button class="mode" data-mode="learn">Learn</button>
+    <button class="mode" data-mode="test">Test</button>
+    <span style="flex:1"></span>
+    <label style="display:flex;align-items:center;gap:6px;margin:0;font-weight:400">Model colour <input id="colour" type="color" value="#b7c5d8" style="width:34px;height:28px;padding:0;border:0"></label>
+    <button id="reset">Reset view</button>
+  </header>
+
+  <div id="main">
+    <section id="stage">
+      <div id="viewer"></div>
+      <div id="status">Starting 3D viewer…</div>
+    </section>
+
+    <aside id="side">
+      <section id="infoPanel">
+        <h2 id="panelTitle">Explore the model</h2>
+        <p id="panelText">Drag to rotate, use the mouse wheel to zoom, and right-drag to pan. Select a labelled point on the model to see its information.</p>
+        <div id="selectedInfo" class="hidden">
+          <h3 id="selectedName"></h3>
+          <p id="selectedDescription"></p>
+        </div>
+      </section>
+
+      <section id="authorPanel">
+        <h3>Hotspot authoring</h3>
+        <p>Switch on authoring, then click a point on the model to place a marker. Add its name and description, then save it.</p>
+        <div class="row">
+          <button id="authorToggle">Start authoring</button>
+          <button id="cancelPlacement" disabled>Cancel</button>
+        </div>
+        <div id="editFields" class="hidden">
+          <label for="hotspotName">Structure / label name</label>
+          <input id="hotspotName" type="text" placeholder="e.g. Aorta">
+          <label for="hotspotDescription">Description</label>
+          <textarea id="hotspotDescription" placeholder="Add an explanation for students…"></textarea>
+          <div class="row" style="margin-top:8px">
+            <button id="saveHotspot" class="primary">Save hotspot</button>
+            <button id="discardHotspot">Discard</button>
+          </div>
+        </div>
+        <div class="row" style="margin-top:9px">
+          <button id="exportHotspots">Export hotspot data</button>
+          <button id="importButton">Import data</button>
+          <input id="importFile" type="file" accept=".json,application/json" class="hidden">
+        </div>
+        <p class="small">Hotspot data is exported as a JSON file. Keep it with the HTML viewer and STL model, or import it when you reopen the viewer.</p>
+      </section>
+
+      <section id="quizBox">
+        <h3 style="margin-top:0">Identification test</h3>
+        <div id="quizPrompt">Click the structure named in the question.</div>
+        <div id="feedback"></div>
+        <button id="nextQuestion" class="primary" style="margin-top:10px" disabled>Next question</button>
+        <p class="small" id="quizScore">Score: 0 / 0</p>
+      </section>
+
+      <section>
+        <h3>Model hotspots</h3>
+        <ul id="hotspotList"><li class="small">No hotspots added yet.</li></ul>
+      </section>
+      <p class="small" id="modelNote">Model: lockedocclusion_reduced.stl (default)</p>
+      <p class="small" id="loadError"></p>
+    </aside>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// Put the STL file in the same folder as this HTML file, or pass
+// ?model=URL_TO_STL in the iframe URL.
+const DEFAULT_STL_URL = './lockedocclusion_reduced.stl';
+
+const params = new URLSearchParams(location.search);
+const modelURL = params.get('model') || DEFAULT_STL_URL;
+const hotspotsURL = params.get('hotspots') || '';
+
+const viewer = document.getElementById('viewer');
+const statusEl = document.getElementById('status');
+const errorEl = document.getElementById('loadError');
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf4f6f8);
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100000);
+camera.position.set(0, 0, 150);
+
+const renderer = new THREE.WebGLRenderer({antialias:true, alpha:false});
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+viewer.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x7b8490, 2.0));
+const keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
+keyLight.position.set(1, 2, 3);
+scene.add(keyLight);
+const fillLight = new THREE.DirectionalLight(0xffffff, 1.0);
+fillLight.position.set(-2, -1, -2);
+scene.add(fillLight);
+
+const controls = new (await import('three/addons/controls/OrbitControls.js')).OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.enablePan = true;
+controls.enableZoom = true;
+
+let model = null;
+let modelSize = 1;
+let homePosition = new THREE.Vector3();
+let homeTarget = new THREE.Vector3();
+let mode = 'explore';
+let authoring = false;
+let pendingPoint = null;
+let hotspots = [];
+let markerObjects = [];
+let selectedHotspot = null;
+let quizTarget = null;
+let quizTotal = 0;
+let quizCorrect = 0;
+let quizAnswered = false;
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+
+function setStatus(message) { statusEl.textContent = message; }
+
+function resize() {
+  const w = viewer.clientWidth || 1;
+  const h = viewer.clientHeight || 1;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+new ResizeObserver(resize).observe(viewer);
+resize();
+
+function clearMarkers() {
+  for (const obj of markerObjects) {
+    scene.remove(obj);
+    obj.traverse(child => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) child.material.forEach(m=>m.dispose());
+        else child.material.dispose();
+      }
+    });
+  }
+  markerObjects = [];
+}
+
+function makeMarker(h, index) {
+  const group = new THREE.Group();
+  group.position.copy(h.position);
+  const radius = Math.max(modelSize * 0.009, 0.15);
+  const sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 18, 14),
+    new THREE.MeshStandardMaterial({color:0xe04b43, emissive:0x52110d, roughness:0.4})
+  );
+  group.add(sphere);
+  const canvas = document.createElement('canvas');
+  canvas.width = 128; canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(64,64,54,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#17202b'; ctx.font = 'bold 58px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(String(index+1),64,66);
+  const texture = new THREE.CanvasTexture(canvas);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({map:texture, depthTest:false}));
+  sprite.scale.set(radius*4.0, radius*4.0, 1);
+  sprite.position.y = radius*2.1;
+  group.add(sprite);
+  group.userData.hotspotId = h.id;
+  group.userData.isHotspotMarker = true;
+  scene.add(group);
+  markerObjects.push(group);
+}
+
+function renderHotspots() {
+  clearMarkers();
+  hotspots.forEach((h,i) => makeMarker(h,i));
+  renderHotspotList();
+  // Markers are shown in Learn mode and while authoring. Explore mode
+  // also shows small markers to make the labelled areas discoverable.
+  markerObjects.forEach(m => m.visible = mode !== 'test');
+}
+
+function renderHotspotList() {
+  const list = document.getElementById('hotspotList');
+  list.innerHTML = '';
+  if (!hotspots.length) {
+    const li = document.createElement('li'); li.className='small'; li.textContent='No hotspots added yet.'; list.appendChild(li); return;
+  }
+  hotspots.forEach((h,i) => {
+    const li=document.createElement('li');
+    const name=document.createElement('span'); name.className='name'; name.textContent=(i+1)+'. '+h.name;
+    const locate=document.createElement('button'); locate.textContent='View'; locate.addEventListener('click',()=>selectHotspot(h));
+    li.append(name,locate);
+    if (authoring) {
+      const del=document.createElement('button'); del.textContent='Delete'; del.addEventListener('click',()=>{
+        hotspots=hotspots.filter(x=>x.id!==h.id); renderHotspots();
+      }); li.append(del);
+    }
+    list.appendChild(li);
+  });
+}
+
+function selectHotspot(h) {
+  selectedHotspot = h;
+  document.getElementById('selectedInfo').classList.remove('hidden');
+  document.getElementById('selectedName').textContent = h.name;
+  document.getElementById('selectedDescription').textContent = h.description || 'No description has been added.';
+  controls.target.copy(h.position);
+  renderHotspotList();
+}
+
+function loadModel(url) {
+  setStatus('Loading 3D model…');
+  new STLLoader().load(url, geometry => {
+    geometry.computeVertexNormals();
+    geometry.computeBoundingBox();
+    const centre = new THREE.Vector3();
+    geometry.boundingBox.getCenter(centre);
+    geometry.translate(-centre.x,-centre.y,-centre.z);
+    const material = new THREE.MeshStandardMaterial({
+      color:document.getElementById('colour').value,
+      metalness:0.05, roughness:0.72, side:THREE.DoubleSide
+    });
+    model = new THREE.Mesh(geometry,material);
+    scene.add(model);
+    const box = new THREE.Box3().setFromObject(model);
+    const size = new THREE.Vector3(); box.getSize(size);
+    modelSize = Math.max(size.x,size.y,size.z) || 1;
+    const distance = modelSize / (2*Math.tan(THREE.MathUtils.degToRad(camera.fov/2))) * 1.8;
+    camera.position.set(distance*0.8,distance*0.65,distance*1.6);
+    camera.near = Math.max(modelSize/10000,0.001);
+    camera.far = modelSize*100;
+    camera.updateProjectionMatrix();
+    controls.target.set(0,0,0);
+    controls.update();
+    homePosition.copy(camera.position);
+    homeTarget.copy(controls.target);
+    document.getElementById('modelNote').textContent='Model: '+url;
+    if (hotspots.length) renderHotspots();
+    setStatus('Model loaded. Drag to rotate; wheel to zoom; right-drag to pan.');
+  }, xhr => {
+    if (xhr.total) setStatus('Loading model: '+Math.round(xhr.loaded/xhr.total*100)+'%');
+  }, err => {
+    console.error(err);
+    setStatus('Could not load the STL file.');
+    errorEl.textContent='Check that the STL URL is correct and publicly accessible. If hosted on another domain, that host must allow cross-origin (CORS) access. Details: '+(err?.message || 'Network or file error');
+  });
+}
+
+function getModelHit(event) {
+  const rect=renderer.domElement.getBoundingClientRect();
+  pointer.x=((event.clientX-rect.left)/rect.width)*2-1;
+  pointer.y=-((event.clientY-rect.top)/rect.height)*2+1;
+  raycaster.setFromCamera(pointer,camera);
+  if (!model) return null;
+  const hits=raycaster.intersectObject(model,false);
+  return hits.length ? hits[0] : null;
+}
+
+function nearestHotspot(point) {
+  let nearest=null, distance=Infinity;
+  for (const h of hotspots) {
+    const d=h.position.distanceTo(point);
+    if (d<distance) { distance=d; nearest=h; }
+  }
+  // Direct selection associates the clicked surface point with the
+  // nearest authored hotspot if it is within this tolerance.
+  return nearest && distance < modelSize*0.075 ? nearest : null;
+}
+
+let pointerDown=null;
+renderer.domElement.addEventListener('pointerdown',e=>{ pointerDown={x:e.clientX,y:e.clientY}; });
+renderer.domElement.addEventListener('pointerup',e=>{
+  if (!pointerDown || Math.hypot(e.clientX-pointerDown.x,e.clientY-pointerDown.y)>5) { pointerDown=null; return; }
+  pointerDown=null;
+
+  // First check whether the student clicked a numbered marker.
+  const rect=renderer.domElement.getBoundingClientRect();
+  pointer.x=((e.clientX-rect.left)/rect.width)*2-1;
+  pointer.y=-((e.clientY-rect.top)/rect.height)*2+1;
+  raycaster.setFromCamera(pointer,camera);
+  const markerHits=raycaster.intersectObjects(markerObjects,true);
+  if (markerHits.length) {
+    let node=markerHits[0].object;
+    while (node && !node.userData.hotspotId) node=node.parent;
+    if (node && node.userData.hotspotId) {
+      const markerHotspot=hotspots.find(h=>h.id===node.userData.hotspotId);
+      if (markerHotspot && mode!=='test' && !authoring) { selectHotspot(markerHotspot); return; }
+    }
+  }
+
+  const hit=getModelHit(e);
+  if (!hit) return;
+  if (authoring) {
+    pendingPoint=hit.point.clone();
+    document.getElementById('editFields').classList.remove('hidden');
+    document.getElementById('hotspotName').value='';
+    document.getElementById('hotspotDescription').value='';
+    document.getElementById('hotspotName').focus();
+    setStatus('Hotspot position selected. Enter a name and save it.');
+    return;
+  }
+  const h=nearestHotspot(hit.point);
+  if (mode==='test') {
+    if (quizAnswered) return;
+    quizTotal++;
+    if (h && quizTarget && h.id===quizTarget.id) {
+      quizCorrect++;
+      document.getElementById('feedback').textContent='Correct!';
+      document.getElementById('feedback').style.color='#187344';
+    } else {
+      document.getElementById('feedback').textContent=h ? 'Not quite. You selected: '+h.name : 'No labelled hotspot at that point. Try again.';
+      document.getElementById('feedback').style.color='#a32929';
+      // Only count a completed answer when a hotspot was actually selected.
+      if (!h) { quizTotal--; return; }
+    }
+    quizAnswered=true;
+    document.getElementById('nextQuestion').disabled=false;
+    document.getElementById('quizScore').textContent='Score: '+quizCorrect+' / '+quizTotal;
+    return;
+  }
+  if (h) selectHotspot(h);
+  else {
+    selectedHotspot=null;
+    document.getElementById('selectedInfo').classList.add('hidden');
+    setStatus('Surface selected. Add a hotspot here using authoring mode to label this area.');
+  }
+});
+
+document.getElementById('authorToggle').addEventListener('click',()=>{
+  authoring=!authoring;
+  document.getElementById('authorToggle').textContent=authoring?'Stop authoring':'Start authoring';
+  document.getElementById('cancelPlacement').disabled=!authoring;
+  renderHotspots();
+  setStatus(authoring?'Authoring on: click the model to place a hotspot.':'Authoring off.');
+});
+document.getElementById('cancelPlacement').addEventListener('click',()=>{
+  pendingPoint=null; document.getElementById('editFields').classList.add('hidden');
+});
+document.getElementById('discardHotspot').addEventListener('click',()=>{
+  pendingPoint=null; document.getElementById('editFields').classList.add('hidden');
+});
+document.getElementById('saveHotspot').addEventListener('click',()=>{
+  const name=document.getElementById('hotspotName').value.trim();
+  if (!pendingPoint || !name) { alert('Click the model and enter a structure name first.'); return; }
+  hotspots.push({
+    id:(crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random())),
+    name,
+    description:document.getElementById('hotspotDescription').value.trim(),
+    position:{x:pendingPoint.x,y:pendingPoint.y,z:pendingPoint.z}
+  });
+  // Convert plain JSON coordinates to THREE.Vector3.
+  hotspots[hotspots.length-1].position=new THREE.Vector3(pendingPoint.x,pendingPoint.y,pendingPoint.z);
+  pendingPoint=null;
+  document.getElementById('editFields').classList.add('hidden');
+  renderHotspots();
+  setStatus('Hotspot saved. Export the hotspot data to keep it.');
+});
+
+document.getElementById('exportHotspots').addEventListener('click',()=>{
+  const data={
+    model: modelURL,
+    hotspots:hotspots.map(h=>({id:h.id,name:h.name,description:h.description,position:{x:h.position.x,y:h.position.y,z:h.position.z}}))
+  };
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='model-hotspots.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+document.getElementById('importButton').addEventListener('click',()=>document.getElementById('importFile').click());
+document.getElementById('importFile').addEventListener('change',async e=>{
+  const file=e.target.files[0]; if(!file) return;
+  try {
+    const data=JSON.parse(await file.text());
+    if (!Array.isArray(data.hotspots)) throw new Error('This JSON file does not contain a hotspots array.');
+    hotspots=data.hotspots.map(h=>({
+      id:h.id || String(Math.random()),
+      name:String(h.name || 'Unnamed hotspot'),
+      description:String(h.description || ''),
+      position:new THREE.Vector3(Number(h.position.x),Number(h.position.y),Number(h.position.z))
+    }));
+    renderHotspots(); setStatus('Imported '+hotspots.length+' hotspots.');
+  } catch(err) { alert('Could not import hotspot data: '+err.message); }
+  e.target.value='';
+});
+
+document.getElementById('colour').addEventListener('input',e=>{ if(model) model.material.color.set(e.target.value); });
+document.getElementById('reset').addEventListener('click',()=>{
+  camera.position.copy(homePosition); controls.target.copy(homeTarget); controls.update();
+});
+
+function setMode(next) {
+  mode=next;
+  document.querySelectorAll('.mode').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));
+  document.getElementById('quizBox').style.display=mode==='test'?'block':'none';
+  document.getElementById('authorPanel').classList.toggle('hidden',mode==='test');
+  document.getElementById('panelTitle').textContent=mode==='explore'?'Explore the model':mode==='learn'?'Learning mode':'Test your knowledge';
+  document.getElementById('panelText').textContent=mode==='explore'
+    ? 'Rotate, zoom and pan the model. Click near an authored hotspot to identify that structure.'
+    : mode==='learn'
+    ? 'Select a numbered marker or click the corresponding area on the model to reveal its name and description.'
+    : 'The numbered markers are hidden. Find the named structure by clicking its location on the 3D model.';
+  document.getElementById('selectedInfo').classList.add('hidden');
+  renderHotspots();
+  if(mode==='test') startQuestion();
+}
+document.querySelectorAll('.mode').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
+
+function startQuestion() {
+  const feedback=document.getElementById('feedback');
+  const next=document.getElementById('nextQuestion');
+  if (!hotspots.length) {
+    quizTarget=null;
+    document.getElementById('quizPrompt').textContent='Add hotspots in Explore or Learn mode before starting a test.';
+    feedback.textContent='';
+    next.disabled=true;
+    return;
+  }
+  quizTarget=hotspots[Math.floor(Math.random()*hotspots.length)];
+  quizAnswered=false;
+  feedback.textContent='';
+  next.disabled=true;
+  document.getElementById('quizPrompt').textContent='Find: '+quizTarget.name;
+  document.getElementById('quizScore').textContent='Score: '+quizCorrect+' / '+quizTotal;
+}
+document.getElementById('nextQuestion').addEventListener('click',startQuestion);
+
+// Markers are clickable from the list; model-surface picking works in all modes.
+// Animation loop.
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  // Keep marker labels facing the camera; Three.js sprites do this automatically.
+  renderer.render(scene,camera);
+}
+animate();
+loadModel(modelURL);
+
+// Optionally preload an authored hotspot JSON file. This is useful when
+// publishing a finished activity: ?model=model.stl&hotspots=model-hotspots.json
+if (hotspotsURL) {
+  fetch(hotspotsURL)
+    .then(response => {
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      return response.json();
+    })
+    .then(data => {
+      if (!Array.isArray(data.hotspots)) throw new Error('No hotspots array found.');
+      hotspots = data.hotspots.map(h => ({
+        id: h.id || String(Math.random()),
+        name: String(h.name || 'Unnamed hotspot'),
+        description: String(h.description || ''),
+        position: new THREE.Vector3(Number(h.position.x), Number(h.position.y), Number(h.position.z))
+      }));
+      if (model) renderHotspots();
+      setStatus('Loaded model and ' + hotspots.length + ' hotspots.');
+    })
+    .catch(err => {
+      console.error(err);
+      errorEl.textContent = 'Could not load hotspot data: ' + err.message;
+    });
+}
+</script>
+</body>
+</html>
